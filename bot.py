@@ -13,8 +13,8 @@ from telegram.ext import (
 )
 
 # Configuration
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+TELEGRAM_TOKEN = os.getenv("8827719175:AAGiX9iflaRH0DiOWGlqUMcVemZk5jgkNNc")
+GEMINI_API_KEY = os.getenv("AQ.Ab8RN6I4ko0X0hxvKOPfZeydHvQQsxNN3q5eR0yKtMpVCNMGew")
 
 # Initialize Google GenAI Client
 ai_client = genai.Client(api_key=GEMINI_API_KEY)
