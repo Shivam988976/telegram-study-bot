@@ -1,8 +1,8 @@
 import logging
 import os
+import requests
 from threading import Thread
 from flask import Flask
-from google import genai
 from telegram import Update
 from telegram.ext import (
     ApplicationBuilder,
@@ -12,14 +12,15 @@ from telegram.ext import (
     ContextTypes,
 )
 
-# Replace AIzaSy... with your ACTUAL key from Google AI Studio
+# Configuration
 TELEGRAM_TOKEN = "8827719175:AAGiX9iflaRH0DiOWGlqUMcVemZk5jgkNNc"
-GEMINI_API_KEY = "AIzaSyB99AvgqH8PDCZ9z96URoDg2jaeUha9Iss"  # Must start with AIzaSy...
+# PASTE YOUR HUGGINGFACE TOKEN HERE (starts with hf_...)
+HF_API_KEY = "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"
 
-# Initialize Google GenAI Client
-ai_client = genai.Client(api_key=GEMINI_API_KEY)
+# Model endpoint
+HF_MODEL_URL = "https://api-inference.huggingface.co/models/meta-llama/Meta-Llama-3-8B-Instruct"
 
-# Enable detailed logging
+# Logging configuration
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO,
@@ -35,6 +36,27 @@ def home():
 def run_web():
     port = int(os.environ.get("PORT", 8080))
     app_web.run(host="0.0.0.0", port=port)
+
+
+def query_huggingface(prompt: str) -> str:
+    headers = {"Authorization": f"Bearer {HF_API_KEY}"}
+    payload = {
+        "inputs": f"<|system|>\nYou are a warm, friendly, and encouraging human study partner and mentor. Talk naturally and helpfully.<|user|>\n{prompt}<|assistant|>\n",
+        "parameters": {
+            "max_new_tokens": 512,
+            "temperature": 0.7,
+            "return_full_text": False
+        }
+    }
+    
+    response = requests.post(HF_MODEL_URL, headers=headers, json=payload, timeout=30)
+    if response.status_code == 200:
+        result = response.json()
+        if isinstance(result, list) and len(result) > 0:
+            return result[0].get("generated_text", "Sorry, I couldn't generate a response.")
+        return str(result)
+    else:
+        raise Exception(f"API Error {response.status_code}: {response.text}")
 
 
 async def send_long_message(update: Update, text: str):
@@ -60,25 +82,15 @@ async def handle_general_message(update: Update, context: ContextTypes.DEFAULT_T
     user_message = update.message.text
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
 
-    system_prompt = (
-        "You are a warm, friendly, and encouraging human study partner and mentor. "
-        "Talk naturally, use an engaging tone, and be supportive."
-    )
-    full_prompt = f"{system_prompt}\n\nUser says: {user_message}"
-
     try:
-        response = ai_client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=full_prompt
-        )
-        await send_long_message(update, response.text)
+        ai_response = query_huggingface(user_message)
+        await send_long_message(update, ai_response)
     except Exception as e:
-        logging.error(f"Gemini API Error: {e}")
-        await update.message.reply_text(f"⚠️ Error from AI service: {e}")
+        logging.error(f"HF API Error: {e}")
+        await update.message.reply_text(f"⚠️ Error: {e}")
 
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Logs errors caused by Updates."""
     logging.error("Exception while handling an update:", exc_info=context.error)
 
 
@@ -93,8 +105,6 @@ def main():
     # Handlers
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_general_message))
-
-    # Add explicit error handler to resolve 'No error handlers are registered'
     app.add_error_handler(error_handler)
 
     print("🚀 Cloud Bot is live!")
