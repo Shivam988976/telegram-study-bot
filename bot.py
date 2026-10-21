@@ -12,15 +12,12 @@ from telegram.ext import (
     ContextTypes,
 )
 
-# Configuration (Use environment variables for security in production)
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "8827719175:AAGiX9iflaRH0DiOWGlqUMcVemZk5jgkNNc")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "AQ.Ab8RN6I4ko0X0hxvKOPfZeydHvQQsxNN3q5eR0yKtMpVCNMGew")
+# Configuration
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 # Initialize Google GenAI Client
 ai_client = genai.Client(api_key=GEMINI_API_KEY)
-
-# Store ongoing chat sessions
-user_chats = {}
 
 # Logging configuration
 logging.basicConfig(
@@ -28,7 +25,7 @@ logging.basicConfig(
     level=logging.INFO,
 )
 
-# --- Tiny Flask Web Server (Keeps the cloud host alive) ---
+# --- Tiny Flask Web Server (Keeps Render alive) ---
 app_web = Flask(__name__)
 
 @app_web.route('/')
@@ -36,23 +33,9 @@ def home():
     return "Bot is active and running 24/7!"
 
 def run_web():
-    # Render assigns a dynamic port via environment variables, default to 8080
     port = int(os.environ.get("PORT", 8080))
     app_web.run(host="0.0.0.0", port=port)
 
-
-# --- Telegram Bot Logic ---
-def get_or_create_chat(user_id):
-    if user_id not in user_chats:
-        system_instruction = (
-            "You are a warm, friendly, and encouraging human study partner and mentor. "
-            "Talk naturally, use an engaging tone, and be supportive."
-        )
-        user_chats[user_id] = ai_client.chats.create(
-            model="gemini-2.5-flash",
-            config={"system_instruction": system_instruction}
-        )
-    return user_chats[user_id]
 
 async def send_long_message(update: Update, text: str):
     max_length = 4000
@@ -61,6 +44,7 @@ async def send_long_message(update: Update, text: str):
     else:
         for i in range(0, len(text), max_length):
             await update.message.reply_text(text[i:i+max_length])
+
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_name = update.effective_user.first_name or "there"
@@ -71,6 +55,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(welcome_text)
 
+
 async def explain_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     topic = " ".join(context.args)
     if not topic:
@@ -78,14 +63,19 @@ async def explain_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
-    user_id = update.effective_user.id
-    chat = get_or_create_chat(user_id)
     
+    prompt = f"You are a warm, friendly human study partner. Explain the topic '{topic}' simply and clearly with examples."
+
     try:
-        response = chat.send_message(f"Explain '{topic}' simply like a helpful study partner.")
+        response = ai_client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt
+        )
         await send_long_message(update, response.text)
-    except Exception:
-        await update.message.reply_text("Ah, my brain got stuck for a second! Let's try that again.")
+    except Exception as e:
+        logging.error(f"Error in explain: {e}")
+        await update.message.reply_text(f"⚠️ Error: {e}")
+
 
 async def quiz_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     topic = " ".join(context.args)
@@ -94,29 +84,43 @@ async def quiz_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
-    user_id = update.effective_user.id
-    chat = get_or_create_chat(user_id)
     
+    prompt = f"You are a friendly study partner. Give me 1 practice multiple-choice question on '{topic}' with options A, B, C, D, and the answer at the bottom."
+
     try:
-        response = chat.send_message(f"Give me 1 practice multiple-choice question on '{topic}' with options A, B, C, D, and answer at the bottom.")
+        response = ai_client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt
+        )
         await send_long_message(update, response.text)
-    except Exception:
-        await update.message.reply_text("Oops, something went wrong generating the quiz.")
+    except Exception as e:
+        logging.error(f"Error in quiz: {e}")
+        await update.message.reply_text(f"⚠️ Error: {e}")
+
 
 async def handle_general_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_message = update.message.text
-    user_id = update.effective_user.id
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
-    chat = get_or_create_chat(user_id)
+
+    system_prompt = (
+        "You are a warm, friendly, and encouraging human study partner and mentor. "
+        "Talk naturally, use an engaging tone, and be supportive."
+    )
+    full_prompt = f"{system_prompt}\n\nUser says: {user_message}"
 
     try:
-        response = chat.send_message(user_message)
+        response = ai_client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=full_prompt
+        )
         await send_long_message(update, response.text)
-    except Exception:
-        await update.message.reply_text("Ah, my thoughts got scattered. What were we saying?")
+    except Exception as e:
+        logging.error(f"Error in general message: {e}")
+        await update.message.reply_text(f"⚠️ Error: {e}")
+
 
 def main():
-    # Start the Flask web server in a separate background thread
+    # Start the Flask web server in a background thread
     t = Thread(target=run_web)
     t.start()
 
