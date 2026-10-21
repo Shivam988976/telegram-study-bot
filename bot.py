@@ -12,9 +12,9 @@ from telegram.ext import (
     ContextTypes,
 )
 
-# Configuration
-TELEGRAM_TOKEN = os.getenv("8827719175:AAGiX9iflaRH0DiOWGlqUMcVemZk5jgkNNc")
-GEMINI_API_KEY = os.getenv("AQ.Ab8RN6I4ko0X0hxvKOPfZeydHvQQsxNN3q5eR0yKtMpVCNMGew")
+# Your configuration (Keys hardcoded directly)
+TELEGRAM_TOKEN = "8827719175:AAGiX9iflaRH0DiOWGlqUMcVemZk5jgkNNc"
+GEMINI_API_KEY = "AQ.Ab8RN6I4ko0X0hxvKOPfZeydHvQQsxNN3q5eR0yKtMpVCNMGew"
 
 # Initialize Google GenAI Client
 ai_client = genai.Client(api_key=GEMINI_API_KEY)
@@ -25,7 +25,7 @@ logging.basicConfig(
     level=logging.INFO,
 )
 
-# --- Tiny Flask Web Server (Keeps Render alive) ---
+# --- Tiny Flask Web Server (Keeps Render alive 24/7) ---
 app_web = Flask(__name__)
 
 @app_web.route('/')
@@ -56,48 +56,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(welcome_text)
 
 
-async def explain_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    topic = " ".join(context.args)
-    if not topic:
-        await update.message.reply_text("Hmm, what topic do you want me to break down? Try `/explain Photosynthesis`!")
-        return
-
-    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
-    
-    prompt = f"You are a warm, friendly human study partner. Explain the topic '{topic}' simply and clearly with examples."
-
-    try:
-        response = ai_client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt
-        )
-        await send_long_message(update, response.text)
-    except Exception as e:
-        logging.error(f"Error in explain: {e}")
-        await update.message.reply_text(f"⚠️ Error: {e}")
-
-
-async def quiz_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    topic = " ".join(context.args)
-    if not topic:
-        await update.message.reply_text("What subject should we test ourselves on? E.g., `/quiz Modern History`")
-        return
-
-    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
-    
-    prompt = f"You are a friendly study partner. Give me 1 practice multiple-choice question on '{topic}' with options A, B, C, D, and the answer at the bottom."
-
-    try:
-        response = ai_client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt
-        )
-        await send_long_message(update, response.text)
-    except Exception as e:
-        logging.error(f"Error in quiz: {e}")
-        await update.message.reply_text(f"⚠️ Error: {e}")
-
-
 async def handle_general_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_message = update.message.text
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
@@ -115,7 +73,7 @@ async def handle_general_message(update: Update, context: ContextTypes.DEFAULT_T
         )
         await send_long_message(update, response.text)
     except Exception as e:
-        logging.error(f"Error in general message: {e}")
+        logging.error(f"Gemini API Error: {e}")
         await update.message.reply_text(f"⚠️ Error: {e}")
 
 
@@ -127,8 +85,6 @@ def main():
     # Start Telegram Bot
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
     app.add_handler(CommandHandler("start", start_command))
-    app.add_handler(CommandHandler("explain", explain_command))
-    app.add_handler(CommandHandler("quiz", quiz_command))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_general_message))
 
     print("🚀 Cloud Bot is live!")
