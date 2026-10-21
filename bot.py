@@ -14,7 +14,7 @@ from telegram.ext import (
 
 # Replace AIzaSy... with your ACTUAL key from Google AI Studio
 TELEGRAM_TOKEN = "8827719175:AAGiX9iflaRH0DiOWGlqUMcVemZk5jgkNNc"
-GEMINI_API_KEY = "AQ.Ab8RN6LK4hrPX0fqZvLi3DfUCxIMAC_6CjmslFxtKspwsq9lEQ"  # Must start with AIzaSy...
+GEMINI_API_KEY = "AIzaSyB99AvgqH8PDCZ9z96URoDg2jaeUha9Iss"  # Must start with AIzaSy...
 
 # Initialize Google GenAI Client
 ai_client = genai.Client(api_key=GEMINI_API_KEY)
