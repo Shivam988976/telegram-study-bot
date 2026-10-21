@@ -12,14 +12,14 @@ from telegram.ext import (
     ContextTypes,
 )
 
-# Your configuration (Keys hardcoded directly)
+# Replace AIzaSy... with your ACTUAL key from Google AI Studio
 TELEGRAM_TOKEN = "8827719175:AAGiX9iflaRH0DiOWGlqUMcVemZk5jgkNNc"
-GEMINI_API_KEY = "AQ.Ab8RN6I4ko0X0hxvKOPfZeydHvQQsxNN3q5eR0yKtMpVCNMGew"
+GEMINI_API_KEY = "AQ.Ab8RN6LK4hrPX0fqZvLi3DfUCxIMAC_6CjmslFxtKspwsq9lEQ"  # Must start with AIzaSy...
 
 # Initialize Google GenAI Client
 ai_client = genai.Client(api_key=GEMINI_API_KEY)
 
-# Logging configuration
+# Enable detailed logging
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO,
@@ -74,18 +74,28 @@ async def handle_general_message(update: Update, context: ContextTypes.DEFAULT_T
         await send_long_message(update, response.text)
     except Exception as e:
         logging.error(f"Gemini API Error: {e}")
-        await update.message.reply_text(f"⚠️ Error: {e}")
+        await update.message.reply_text(f"⚠️ Error from AI service: {e}")
+
+
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Logs errors caused by Updates."""
+    logging.error("Exception while handling an update:", exc_info=context.error)
 
 
 def main():
-    # Start the Flask web server in a background thread
+    # Start Flask Web Server
     t = Thread(target=run_web)
     t.start()
 
-    # Start Telegram Bot
+    # Build Telegram Bot Application
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+
+    # Handlers
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_general_message))
+
+    # Add explicit error handler to resolve 'No error handlers are registered'
+    app.add_error_handler(error_handler)
 
     print("🚀 Cloud Bot is live!")
     app.run_polling()
